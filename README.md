@@ -24,6 +24,17 @@ and violet noise.
 
 Produces 16-bit linear mono samples via a BULKIO dataShort port.
 
+AudioSource
+---------------
+Uses the GStreamer `playbin` to read pretty much any audio source that
+your system can support (i.e. CD, DVD, mp3, ogg, speex) including extracting
+audio from video sources.
+
+The `audio-uri` property defines the source of the audio.  For example:
+
+* `file:///path/to/somefile.mp3` read from a file
+* `cdda://4` plays track 4 from the CD
+
 AudioSink
 ---------------
 Renders 16-bit linear mono samples via a BULKIO dataShort port to the sound card.
