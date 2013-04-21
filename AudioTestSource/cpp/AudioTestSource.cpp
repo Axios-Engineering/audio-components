@@ -312,7 +312,7 @@ inline BULKIO::PrecisionUTCTime AudioTestSource_i::_from_gst_timestamp(GstClockT
 	GST_TIME_TO_TIMEVAL(timestamp, tv);
 
 	BULKIO::PrecisionUTCTime tstamp = BULKIO::PrecisionUTCTime();
-	tstamp.tcmode = BULKIO::TCM_CPU;
+	tstamp.tcmode = BULKIO::TCM_OFF;
 	tstamp.tcstatus = (short)1;
 	tstamp.toff = 0.0;
 	tstamp.twsec = tv.tv_sec;
