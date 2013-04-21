@@ -145,6 +145,7 @@ class AudioSink_base : public Resource_impl
         equalizer_struct equalizer;
         float volume;
         bool mute;
+        bool IGNORE_TIMESTAMPS;
 
         // Ports
         BULKIO_dataShort_In_i *audio_in;

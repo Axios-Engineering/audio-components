@@ -3,7 +3,7 @@
     AUTO-GENERATED CODE. DO NOT MODIFY
 
  	Source: AudioSink.spd.xml
- 	Generated on: Sun Apr 21 15:44:26 BST 2013
+ 	Generated on: Sun Apr 21 22:24:25 BST 2013
  	REDHAWK IDE
  	Version: R.1.8.3
  	Build id: v201303122306

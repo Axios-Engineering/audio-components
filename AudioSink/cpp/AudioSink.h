@@ -39,8 +39,10 @@ class AudioSink_i : public AudioSink_base
     private:
 	    bool feed_gst;
 		GstElement *pipeline;
+		GstBus* bus;
 
 		GstElement *src;
+		GstElement *rate;
 		GstElement *conv;
 		GstElement *eqlzr;
 		GstElement *vol;
@@ -53,7 +55,6 @@ class AudioSink_i : public AudioSink_base
 	    void _set_gst_eqlzr_param(const std::string& propid);
 		void _create_pipeline();
 
-		static gboolean _bus_callback(GstBus *bus, GstMessage *message, AudioSink_i* comp);
 		static void _start_feed(GstElement *src, guint size, AudioSink_i *comp);
 		static void _stop_feed(GstElement *src, guint size, AudioSink_i *comp);
 };

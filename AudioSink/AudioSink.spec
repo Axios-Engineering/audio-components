@@ -12,7 +12,7 @@ Prefix: %{_prefix}
 
 Name: AudioSink
 Summary: Component %{name}
-Version: 1.0.0
+Version: 0.0.1
 Release: 1
 License: None
 Group: REDHAWK/Components
@@ -37,7 +37,7 @@ BuildRequires: apache-log4cxx-devel >= 0.10
 
 
 %description
-Component %{name}
+Renders audio to a soundcard using the GStreamer framework.
 
 %prep
 %setup

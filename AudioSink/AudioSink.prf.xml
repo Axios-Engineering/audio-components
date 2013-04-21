@@ -30,4 +30,10 @@
     <kind kindtype="configure"/>
     <action type="external"/>
   </simple>
+  <simple id="IGNORE_TIMESTAMPS" mode="readwrite" type="boolean">
+    <description>Ignore timestamps in the data.  This is generally what you want.</description>
+    <value>true</value>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
 </properties>

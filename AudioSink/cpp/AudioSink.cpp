@@ -94,47 +94,48 @@ void AudioSink_i::_stop_feed(GstElement *sink, guint size, AudioSink_i* comp)
 	comp->feed_gst = false;
 }
 
-gboolean AudioSink_i::_bus_callback(GstBus *bus, GstMessage *message, AudioSink_i* comp)
-{
-    switch(GST_MESSAGE_TYPE(message)){
-
-    case GST_MESSAGE_ERROR:{
-        gchar *debug;
-        GError *err;
-
-        gst_message_parse_error(message, &err, &debug);
-        g_print("Error %s\n", err->message);
-        g_error_free(err);
-        g_free(debug);
-    }
-    break;
-
-    case GST_MESSAGE_EOS:
-        g_print("End of stream\n");
-        break;
-
-    default:
-        g_print("got message %s\n", \
-            gst_message_type_get_name (GST_MESSAGE_TYPE (message)));
-        break;
-    }
-
-    return TRUE;
-}
-
 int AudioSink_i::serviceFunction()
 {
+	// Check the GST message queue for any possible messages of interest
+	GstMessage* message = gst_bus_timed_pop_filtered(bus, 0, static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+	if (message != 0) {
+		switch(GST_MESSAGE_TYPE(message)){
 
+		case GST_MESSAGE_ERROR:{
+			gchar *debug;
+			GError *err;
+
+			gst_message_parse_error(message, &err, &debug);
+			LOG_ERROR(AudioSink_i, "Gstreamer Error: " << err->message);
+			g_error_free(err);
+			g_free(debug);
+		}
+		break;
+
+		case GST_MESSAGE_EOS:
+			LOG_DEBUG(AudioSink_i, "End of stream");
+			break;
+
+		default:
+			LOG_INFO(AudioSink_i, "Received gstreamer message: " <<gst_message_type_get_name (GST_MESSAGE_TYPE (message)));
+			break;
+		}
+	}
+
+	// See if any data has arrived
 	BULKIO_dataShort_In_i::dataTransfer *tmp = audio_in->getPacket(-1);
 	if (not tmp) { // No data is available
 		return NOOP;
 	}
 
+	// If the SRI xdelta has changed, tear-down and restart the pipeline
+	// with the new sample rate.
 	if ((tmp->sriChanged) && (current_sri.xdelta != tmp->SRI.xdelta)) {
 		current_sri = tmp->SRI;
 		_create_pipeline();
 	}
 
+	// If there is a src available and it wants data then feed it.
 	if ((src != 0) && (feed_gst)) {
 		GstBuffer *buffer = gst_buffer_new ();
 		GST_BUFFER_SIZE (buffer) = tmp->dataBuffer.size()*2;
@@ -142,7 +143,7 @@ int AudioSink_i::serviceFunction()
 		GST_BUFFER_DATA (buffer) = GST_BUFFER_MALLOCDATA (buffer);
 		memcpy(GST_BUFFER_DATA (buffer), &tmp->dataBuffer[0], GST_BUFFER_SIZE (buffer));
 
-		if (tmp->T.tcstatus == BULKIO::TCS_VALID) {
+		if ((tmp->T.tcstatus == BULKIO::TCS_VALID) && (IGNORE_TIMESTAMPS == false)) {
 			GTimeVal tv;
 			tv.tv_sec = tmp->T.twsec;
 			tv.tv_usec = (tmp->T.tfsec * 1.0e6);
@@ -151,6 +152,7 @@ int AudioSink_i::serviceFunction()
 
 		int sample_rate = static_cast<int>(rint(1.0/current_sri.xdelta));
   	    GST_BUFFER_DURATION (buffer) = gst_util_uint64_scale (tmp->dataBuffer.size(), GST_SECOND, sample_rate); // number of nanoseconds in buffer val*num/denom
+
 		gst_app_src_push_buffer(reinterpret_cast<GstAppSrc*>(src), buffer);
 	}
     
@@ -158,6 +160,7 @@ int AudioSink_i::serviceFunction()
 }
 
 void AudioSink_i::_create_pipeline() {
+	// Tear-down the previous pipeline
 	if (pipeline != 0) {
 		LOG_DEBUG (AudioSink_i, "Stopping GStreamer Pipeline");
 		gst_element_set_state (pipeline, GST_STATE_NULL);
@@ -167,17 +170,27 @@ void AudioSink_i::_create_pipeline() {
 
 		pipeline = 0;
 		src = 0;
+		rate = 0;
 		conv = 0;
+		eqlzr = 0;
+		vol = 0;
 		resamp = 0;
 		sink = 0;
 	}
 
+	// If the current SRI lacks a sample rate refuse playback
 	if (current_sri.xdelta == 0) {
 		LOG_WARN(AudioSink_i, "Cannot playback BIO stream with 0 second xdelta");
 		return;
 	}
-
 	int sample_rate = static_cast<int>(rint(1.0/current_sri.xdelta));
+
+	LOG_DEBUG (AudioSink_i, "Initializing GStreamer Pipeline");
+	pipeline = gst_pipeline_new ("audio-pipeline");
+	bus = gst_pipeline_get_bus(reinterpret_cast<GstPipeline*>(pipeline));
+
+	// Source from the BULKIO port
+	src      = gst_element_factory_make ("appsrc",  "bio_in");
 	std::strstream audio_type;
 	audio_type << "audio/x-raw-int"
 			   << ",channels=1"
@@ -186,34 +199,34 @@ void AudioSink_i::_create_pipeline() {
 			   << ",width=16"
 			   << ",depth=16"
 			   << ",endianness=1234";
-
-	LOG_DEBUG (AudioSink_i, "Initializing GStreamer Pipeline");
-	pipeline = gst_pipeline_new ("audio-pipeline");
-
-	GstBus* bus = gst_pipeline_get_bus(reinterpret_cast<GstPipeline*>(pipeline));
-	gst_bus_add_watch(bus, (GstBusFunc)AudioSink_i::_bus_callback, this);
-
-	src      = gst_element_factory_make ("appsrc",  "bio_in");
-	conv     = gst_element_factory_make ("audioconvert",  "converter");
-	eqlzr    = gst_element_factory_make ("equalizer-3bands", "eq");
-	vol      = gst_element_factory_make ("volume", "vol");
-	resamp   = gst_element_factory_make ("audioresample",  "resampler");
-	sink     = gst_element_factory_make ("autoaudiosink", "soundcard");
-
-	LOG_INFO (AudioSink_i, "Rendering audio type: " << audio_type.str());
+	LOG_DEBUG (AudioSink_i, "Rendering audio type: " << audio_type.str());
 	GstCaps *audio_caps = gst_caps_from_string (audio_type.str());
 	g_object_set (src, "caps", audio_caps, NULL);
 	gst_caps_unref (audio_caps);
-
 	g_signal_connect (src, "need-data", G_CALLBACK (AudioSink_i::_start_feed), this);
 	g_signal_connect (src, "enough-data", G_CALLBACK (AudioSink_i::_stop_feed), this);
 
+	// Convert the audio format if necessary
+	conv     = gst_element_factory_make ("audioconvert",  "converter");
+
+	// Use audiorate to create a "perfect" stream from a potentially imperfect source
+	rate     = gst_element_factory_make ("audiorate",  "rate");
+
+	// Add an equalizer and volume control
+	eqlzr    = gst_element_factory_make ("equalizer-3bands", "eq");
+	vol      = gst_element_factory_make ("volume", "vol");
 	_set_gst_eqlzr_param("*");
 	_set_gst_vol_param("*");
 
-	gst_bin_add_many (GST_BIN (pipeline), src, conv, eqlzr, vol, resamp, sink, NULL);
+	// Resample if necessary to connect to the audio output sink
+	resamp   = gst_element_factory_make ("audioresample",  "resampler");
 
-	if (!gst_element_link_many (src, conv, eqlzr, vol, resamp, sink, NULL)) {
+	// Output to the best-guess audio output
+	sink     = gst_element_factory_make ("autoaudiosink", "soundcard");
+
+	gst_bin_add_many (GST_BIN (pipeline), src, conv, rate, eqlzr, vol, resamp, sink, NULL);
+
+	if (!gst_element_link_many (src, conv, rate, eqlzr, vol, resamp, sink, NULL)) {
 		LOG_WARN (AudioSink_i, "Failed to link elements!");
 	}
 
