@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE softpkg PUBLIC "-//JTRS//DTD SCA V2.2.2 SPD//EN" "softpkg.dtd">
+<softpkg id="DCE:8add4e2e-b890-429f-8688-3de2d1a34ce8" name="AudioTestSource" type="sca_compliant" version="0.0.1">
+  <title></title>
+  <author>
+    <company>Axios Inc.</company>
+    <webpage>www.axiosengineering.com</webpage>
+  </author>
+  <description>Generates a varity of test audio waveforms using the GStreamer framework.</description>
+  <propertyfile type="PRF">
+    <localfile name="AudioTestSource.prf.xml"/>
+  </propertyfile>
+  <descriptor>
+    <localfile name="AudioTestSource.scd.xml"/>
+  </descriptor>
+  <implementation id="cpp">
+    <description>The implementation contains descriptive information about the template for a software component.</description>
+    <code type="Executable">
+      <localfile name="cpp/AudioTestSource"/>
+      <entrypoint>cpp/AudioTestSource</entrypoint>
+    </code>
+    <compiler name="/usr/bin/gcc" version="4.1.2"/>
+    <programminglanguage name="C++"/>
+    <humanlanguage name="EN"/>
+    <os name="Linux"/>
+    <processor name="x86"/>
+    <processor name="x86_64"/>
+  </implementation>
+</softpkg>

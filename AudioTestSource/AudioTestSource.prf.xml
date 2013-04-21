@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties PUBLIC "-//JTRS//DTD SCA V2.2.2 PRF//EN" "properties.dtd">
+<properties>
+  <simple id="waveform" mode="readwrite" type="ushort">
+    <value>0</value>
+    <enumerations>
+      <enumeration label="SINE" value="0"/>
+      <enumeration label="SQUARE" value="1"/>
+      <enumeration label="SAW" value="2"/>
+      <enumeration label="TRIANGLE" value="3"/>
+      <enumeration label="SILENCE" value="4"/>
+      <enumeration label="WHITE_NOISE" value="5"/>
+      <enumeration label="PINK_NOISE" value="6"/>
+      <enumeration label="SINE_TAB" value="7"/>
+      <enumeration label="TICKS" value="8"/>
+      <enumeration label="GAUSSIAN_WHITE_NOISE" value="9"/>
+      <enumeration label="RED_NOISE" value="10"/>
+      <enumeration label="BLUE_NOISE" value="11"/>
+      <enumeration label="VIOLET_NOISE" value="12"/>
+    </enumerations>
+    <kind kindtype="configure"/>
+    <action type="ge"/>
+  </simple>
+  <simple id="frequency" mode="readwrite" type="ulong">
+    <value>440</value>
+    <units>Hz</units>
+    <range max="20000" min="0"/>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+  <simple id="is-live" mode="readwrite" type="boolean">
+    <value>true</value>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+  <simple id="samplesperpacket" mode="readwrite" type="ulong">
+    <value>1024</value>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+  <simple id="volume" mode="readwrite" type="double">
+    <value>0.8</value>
+    <range max="1" min="0"/>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+  <simple id="sample-rate" mode="readwrite" type="ulong">
+    <value>8000</value>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+  <simple id="resample-filter-length" mode="readwrite" type="ulong">
+    <value>64</value>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+  <simple id="resample-quality" mode="readwrite" type="ushort">
+    <value>4</value>
+    <range max="10" min="0"/>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+  <simple id="stream_id" mode="readwrite" type="string">
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+</properties>

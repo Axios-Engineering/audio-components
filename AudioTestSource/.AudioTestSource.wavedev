@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="ASCII"?>
+<codegen:WaveDevSettings xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:codegen="http://www.redhawk.gov/model/codegen">
+  <implSettings key="cpp">
+    <value outputDir="cpp" template="gov.redhawk.ide.codegen.jet.cplusplus.PullPortDataTemplate" generatorId="gov.redhawk.ide.codegen.jet.cplusplus.CplusplusGenerator" primary="true">
+      <generatedFileCRCs crc="1746641546" file="reconf"/>
+      <generatedFileCRCs crc="563697873" file="AudioTestSource.h"/>
+      <generatedFileCRCs crc="2156330753" file="port_impl.cpp"/>
+      <generatedFileCRCs crc="1427164977" file="AudioTestSource_base.cpp"/>
+      <generatedFileCRCs crc="1404785370" file="build.sh"/>
+      <generatedFileCRCs crc="3415865807" file="configure.ac"/>
+      <generatedFileCRCs crc="1826775756" file="port_impl.h"/>
+      <generatedFileCRCs crc="4102600423" file="AudioTestSource_base.h"/>
+      <generatedFileCRCs crc="3009513093" file="main.cpp"/>
+      <generatedFileCRCs crc="1942573142" file="struct_props.h"/>
+      <generatedFileCRCs crc="1456989574" file="../AudioTestSource.spec"/>
+      <generatedFileCRCs crc="4074457875" file="AudioTestSource.cpp"/>
+      <generatedFileCRCs crc="830173480" file="Makefile.am"/>
+    </value>
+  </implSettings>
+</codegen:WaveDevSettings>

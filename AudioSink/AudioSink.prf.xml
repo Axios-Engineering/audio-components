@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties PUBLIC "-//JTRS//DTD SCA V2.2.2 PRF//EN" "properties.dtd">
+<properties>
+  <struct id="equalizer" mode="readwrite">
+    <simple id="low" type="double">
+      <description>Centered at 100Hz</description>
+      <value>0</value>
+      <range max="12" min="-24"/>
+    </simple>
+    <simple id="med" type="double">
+      <description>Centered at 1100 Hz</description>
+      <value>0</value>
+      <range max="12" min="-24"/>
+    </simple>
+    <simple id="hi" type="double">
+      <description>Centered at 11000 Hz</description>
+      <value>0</value>
+      <range max="12" min="-24"/>
+    </simple>
+    <configurationkind kindtype="configure"/>
+  </struct>
+  <simple id="volume" mode="readwrite" type="float">
+    <value>1</value>
+    <range max="10" min="0"/>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+  <simple id="mute" mode="readwrite" type="boolean">
+    <value>false</value>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+</properties>
