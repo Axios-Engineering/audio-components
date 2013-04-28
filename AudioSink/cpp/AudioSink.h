@@ -16,6 +16,12 @@
  */
 #ifndef AUDIOSINK_IMPL_H
 #define AUDIOSINK_IMPL_H
+
+// Necessary to allow ICPC to compile against GLIB
+#ifdef __INTEL_COMPILER
+#define GLIB_DISABLE_DEPRECATION_WARNINGS
+#endif
+
 #include <gst/gst.h>
 
 #include "AudioSink_base.h"
@@ -37,7 +43,6 @@ class AudioSink_i : public AudioSink_base
 	    void stop() throw (CF::Resource::StopError, CORBA::SystemException);
 
     private:
-	    bool feed_gst;
 		GstElement *pipeline;
 		GstBus* bus;
 
@@ -47,6 +52,7 @@ class AudioSink_i : public AudioSink_base
 		GstElement *eqlzr;
 		GstElement *vol;
 		GstElement *resamp;
+		GstElement *queue;
 		GstElement *sink;
 
 		BULKIO::StreamSRI current_sri;
@@ -55,8 +61,8 @@ class AudioSink_i : public AudioSink_base
 	    void _set_gst_eqlzr_param(const std::string& propid);
 		void _create_pipeline();
 
-		static void _start_feed(GstElement *src, guint size, AudioSink_i *comp);
-		static void _stop_feed(GstElement *src, guint size, AudioSink_i *comp);
+		static void _underrun(GstElement *src, AudioSink_i *comp);
+		static void _pushing(GstElement *src, AudioSink_i *comp);
 };
 
 #endif

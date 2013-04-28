@@ -47,6 +47,9 @@ void AudioTestSource_i::initialize() throw (CF::LifeCycle::InitializeError, CORB
 {
 	AudioTestSource_base::initialize();
 
+	pipeline = 0;
+	bus = 0;
+
 	// Tie SCA properties to GStreamer properties
 	setPropertyChangeListener(static_cast<std::string>("waveform"), this, &AudioTestSource_i::_set_gst_src_param);
 	setPropertyChangeListener(static_cast<std::string>("frequency"), this, &AudioTestSource_i::_set_gst_src_param);
@@ -66,9 +69,7 @@ void AudioTestSource_i::start() throw (CF::Resource::StartError, CORBA::SystemEx
 	LOG_DEBUG (AudioTestSource_i, "Initializing GStreamer Pipeline");
 	pipeline = gst_pipeline_new ("audio-pipeline");
 
-	GstBus* bus = gst_pipeline_get_bus(reinterpret_cast<GstPipeline*>(pipeline));
-	gst_bus_add_watch(bus, (GstBusFunc)AudioTestSource_i::_bus_callback, this);
-	gst_object_unref (bus);
+	bus = gst_pipeline_get_bus(reinterpret_cast<GstPipeline*>(pipeline));
 
 	src      = gst_element_factory_make ("audiotestsrc",  "audio");
 	resamp   = gst_element_factory_make ("audioresample",  "resampler");
@@ -140,11 +141,13 @@ void AudioTestSource_i::start() throw (CF::Resource::StartError, CORBA::SystemEx
 
 void AudioTestSource_i::stop() throw (CF::Resource::StopError, CORBA::SystemException)
 {
-	LOG_DEBUG (AudioTestSource_i, "Stopping GStreamer Pipeline");
-	gst_element_set_state (pipeline, GST_STATE_NULL);
+    if (pipeline) {
+        LOG_DEBUG (AudioTestSource_i, "Stopping GStreamer Pipeline");
+        gst_element_set_state (pipeline, GST_STATE_NULL);
 
-	LOG_DEBUG (AudioTestSource_i, "Releasing GStreamer Pipeline");
-	gst_object_unref (GST_OBJECT (pipeline));
+        LOG_DEBUG (AudioTestSource_i, "Releasing GStreamer Pipeline");
+        gst_object_unref (GST_OBJECT (pipeline));
+    }
 
 	pipeline = NULL;
 	src      = NULL;
@@ -158,33 +161,6 @@ void AudioTestSource_i::stop() throw (CF::Resource::StopError, CORBA::SystemExce
 void AudioTestSource_i::releaseObject() throw (CORBA::SystemException, CF::LifeCycle::ReleaseError)
 {
 	AudioTestSource_base::releaseObject();
-}
-
-gboolean AudioTestSource_i::_bus_callback(GstBus *bus, GstMessage *message, AudioTestSource_i* comp)
-{
-    switch(GST_MESSAGE_TYPE(message)){
-
-    case GST_MESSAGE_ERROR:{
-        gchar *debug;
-        GError *err;
-
-        gst_message_parse_error(message, &err, &debug);
-        LOG_ERROR(AudioTestSource_i, "Gstreamer Error: " << err->message);
-        g_error_free(err);
-        g_free(debug);
-    }
-    break;
-
-    case GST_MESSAGE_EOS:
-    	LOG_INFO(AudioTestSource_i, "End of stream");
-        break;
-
-    default:
-    	LOG_INFO(AudioTestSource_i, "Received gstreamer message: " <<gst_message_type_get_name (GST_MESSAGE_TYPE (message)));
-        break;
-    }
-
-    return TRUE;
 }
 
 void AudioTestSource_i::_new_gst_buffer(GstElement *sink, AudioTestSource_i* comp) {
@@ -323,6 +299,34 @@ inline BULKIO::PrecisionUTCTime AudioTestSource_i::_from_gst_timestamp(GstClockT
 
 int AudioTestSource_i::serviceFunction()
 {
-    // Nothing to do currently
+    if (bus) {
+        GstMessage* message = gst_bus_timed_pop_filtered(bus, GST_MSECOND, static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+        if (message == 0) {
+            return NOOP;
+        }
+
+        switch(GST_MESSAGE_TYPE(message)){
+
+           case GST_MESSAGE_ERROR:{
+               gchar *debug;
+               GError *err;
+
+               gst_message_parse_error(message, &err, &debug);
+               LOG_ERROR(AudioTestSource_i, "Gstreamer Error: " << err->message);
+               g_error_free(err);
+               g_free(debug);
+           }
+           break;
+
+           case GST_MESSAGE_EOS:
+               LOG_DEBUG(AudioTestSource_i, "End of stream");
+               break;
+
+           default:
+            LOG_INFO(AudioTestSource_i, "Received gstreamer message: " <<gst_message_type_get_name (GST_MESSAGE_TYPE (message)));
+               break;
+           }
+    }
+
     return NOOP;
 }

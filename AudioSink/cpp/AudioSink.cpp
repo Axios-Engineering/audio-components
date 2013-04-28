@@ -47,7 +47,8 @@ AudioSink_i::~AudioSink_i()
 void AudioSink_i::initialize() throw (CF::LifeCycle::InitializeError, CORBA::SystemException)
 {
 	LOG_DEBUG (AudioSink_i, "Initializing");
-
+	pipeline = 0;
+	bus = 0;
 	// Tie SCA properties to GStreamer properties
 	setPropertyChangeListener(static_cast<std::string>("equalizer"), this, &AudioSink_i::_set_gst_eqlzr_param);
 	setPropertyChangeListener(static_cast<std::string>("volume"), this, &AudioSink_i::_set_gst_vol_param);
@@ -84,43 +85,35 @@ void AudioSink_i::releaseObject() throw (CORBA::SystemException, CF::LifeCycle::
 	}
 }
 
-void AudioSink_i::_start_feed(GstElement *sink, guint size, AudioSink_i* comp)
-{
-    comp->feed_gst = true;
-}
-
-void AudioSink_i::_stop_feed(GstElement *sink, guint size, AudioSink_i* comp)
-{
-	comp->feed_gst = false;
-}
-
 int AudioSink_i::serviceFunction()
 {
-	// Check the GST message queue for any possible messages of interest
-	GstMessage* message = gst_bus_timed_pop_filtered(bus, 0, static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
-	if (message != 0) {
-		switch(GST_MESSAGE_TYPE(message)){
+    if (bus) {
+        // Check the GST message queue for any possible messages of interest
+        GstMessage* message = gst_bus_timed_pop_filtered(bus, 0, static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+        if (message != 0) {
+            switch(GST_MESSAGE_TYPE(message)){
 
-		case GST_MESSAGE_ERROR:{
-			gchar *debug;
-			GError *err;
+            case GST_MESSAGE_ERROR:{
+                gchar *debug;
+                GError *err;
 
-			gst_message_parse_error(message, &err, &debug);
-			LOG_ERROR(AudioSink_i, "Gstreamer Error: " << err->message);
-			g_error_free(err);
-			g_free(debug);
-		}
-		break;
+                gst_message_parse_error(message, &err, &debug);
+                LOG_ERROR(AudioSink_i, "Gstreamer Error: " << err->message);
+                g_error_free(err);
+                g_free(debug);
+            }
+            break;
 
-		case GST_MESSAGE_EOS:
-			LOG_DEBUG(AudioSink_i, "End of stream");
-			break;
+            case GST_MESSAGE_EOS:
+                LOG_DEBUG(AudioSink_i, "End of stream");
+                break;
 
-		default:
-			LOG_INFO(AudioSink_i, "Received gstreamer message: " <<gst_message_type_get_name (GST_MESSAGE_TYPE (message)));
-			break;
-		}
-	}
+            default:
+                LOG_INFO(AudioSink_i, "Received gstreamer message: " <<gst_message_type_get_name (GST_MESSAGE_TYPE (message)));
+                break;
+            }
+        }
+    }
 
 	// See if any data has arrived
 	BULKIO_dataShort_In_i::dataTransfer *tmp = audio_in->getPacket(-1);
@@ -136,7 +129,7 @@ int AudioSink_i::serviceFunction()
 	}
 
 	// If there is a src available and it wants data then feed it.
-	if ((src != 0) && (feed_gst)) {
+	if (src != 0) {
 		GstBuffer *buffer = gst_buffer_new ();
 		GST_BUFFER_SIZE (buffer) = tmp->dataBuffer.size()*2;
 		GST_BUFFER_MALLOCDATA (buffer) = reinterpret_cast<guint8*>(g_malloc (GST_BUFFER_SIZE(buffer)));
@@ -155,6 +148,7 @@ int AudioSink_i::serviceFunction()
 
 		gst_app_src_push_buffer(reinterpret_cast<GstAppSrc*>(src), buffer);
 	}
+	delete tmp;
     
     return NORMAL;
 }
@@ -202,9 +196,8 @@ void AudioSink_i::_create_pipeline() {
 	LOG_DEBUG (AudioSink_i, "Rendering audio type: " << audio_type.str());
 	GstCaps *audio_caps = gst_caps_from_string (audio_type.str());
 	g_object_set (src, "caps", audio_caps, NULL);
+	g_object_set(src, "block", true, (const void*) 0);
 	gst_caps_unref (audio_caps);
-	g_signal_connect (src, "need-data", G_CALLBACK (AudioSink_i::_start_feed), this);
-	g_signal_connect (src, "enough-data", G_CALLBACK (AudioSink_i::_stop_feed), this);
 
 	// Convert the audio format if necessary
 	conv     = gst_element_factory_make ("audioconvert",  "converter");
@@ -221,17 +214,43 @@ void AudioSink_i::_create_pipeline() {
 	// Resample if necessary to connect to the audio output sink
 	resamp   = gst_element_factory_make ("audioresample",  "resampler");
 
+    // Provide a queue so that the audio playback can tolerate some
+    // jitter
+    queue = gst_element_factory_make("queue", "queue");
+    g_object_set(queue, "min-threshold-time", 2500 * GST_MSECOND,
+            "max-size-time", 5000 * GST_MSECOND, (const void*) 0);
+    // Attach callbacks to pause the pipe if there is a queue underrun
+    g_signal_connect(queue, "underrun", G_CALLBACK(AudioSink_i::_underrun), this);
+    g_signal_connect(queue, "pushing", G_CALLBACK(AudioSink_i::_pushing), this);
+
 	// Output to the best-guess audio output
 	sink     = gst_element_factory_make ("autoaudiosink", "soundcard");
 
-	gst_bin_add_many (GST_BIN (pipeline), src, conv, rate, eqlzr, vol, resamp, sink, NULL);
+	gst_bin_add_many (GST_BIN (pipeline), src, conv, queue, rate, eqlzr, vol, resamp, sink, NULL);
 
-	if (!gst_element_link_many (src, conv, rate, eqlzr, vol, resamp, sink, NULL)) {
+	if (!gst_element_link_many (src, conv, queue, rate, eqlzr, vol, resamp, sink, NULL)) {
 		LOG_WARN (AudioSink_i, "Failed to link elements!");
 	}
 
 	LOG_DEBUG (AudioSink_i, "Starting GStreamer Pipeline");
 	gst_element_set_state (pipeline, GST_STATE_PLAYING);
+}
+
+
+void AudioSink_i::_pushing(GstElement *sink, AudioSink_i* comp)
+{
+    LOG_DEBUG(AudioSink_i, "Audio Running");
+    if (comp->pipeline) {
+        gst_element_set_state(comp->pipeline, GST_STATE_PLAYING);
+    }
+}
+
+void AudioSink_i::_underrun(GstElement *sink, AudioSink_i* comp)
+{
+    LOG_DEBUG(AudioSink_i, "Audio Underrun");
+    if (comp->pipeline) {
+        gst_element_set_state(comp->pipeline, GST_STATE_PAUSED);
+    }
 }
 
 void AudioSink_i::_set_gst_eqlzr_param(const std::string& propid) {

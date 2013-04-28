@@ -46,6 +46,8 @@ AudioSource_i::~AudioSource_i()
 void AudioSource_i::initialize() throw (CF::LifeCycle::InitializeError, CORBA::SystemException)
 {
 	AudioSource_base::initialize();
+	pipeline = 0;
+	bus = 0;
 }
 
 
@@ -122,13 +124,15 @@ void AudioSource_i::start() throw (CF::Resource::StartError, CORBA::SystemExcept
 
 void AudioSource_i::stop() throw (CF::Resource::StopError, CORBA::SystemException)
 {
-	LOG_DEBUG (AudioSource_i, "Stopping GStreamer Pipeline");
-	gst_element_set_state (pipeline, GST_STATE_NULL);
+    if (pipeline) {
+        LOG_DEBUG (AudioSource_i, "Stopping GStreamer Pipeline");
+        gst_element_set_state (pipeline, GST_STATE_NULL);
 
-	LOG_DEBUG (AudioSource_i, "Releasing GStreamer Pipeline");
-	gst_object_unref (GST_OBJECT (pipeline));
+        LOG_DEBUG (AudioSource_i, "Releasing GStreamer Pipeline");
+        gst_object_unref (GST_OBJECT (pipeline));
 
-	gst_object_unref (bus);
+        gst_object_unref (bus);
+    }
 
 	pipeline = NULL;
 	sink     = NULL;
@@ -252,35 +256,37 @@ void AudioSource_i::loop()
 
 int AudioSource_i::serviceFunction()
 {
-    GstMessage* message = gst_bus_timed_pop_filtered(bus, GST_MSECOND, static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
-    if (message == 0) {
-    	return NOOP;
+    if (bus) {
+        GstMessage* message = gst_bus_timed_pop_filtered(bus, GST_MSECOND, static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+        if (message == 0) {
+            return NOOP;
+        }
+
+        switch(GST_MESSAGE_TYPE(message)){
+
+           case GST_MESSAGE_ERROR:{
+               gchar *debug;
+               GError *err;
+
+               gst_message_parse_error(message, &err, &debug);
+               LOG_ERROR(AudioSource_i, "Gstreamer Error: " << err->message);
+               g_error_free(err);
+               g_free(debug);
+           }
+           break;
+
+           case GST_MESSAGE_EOS:
+               LOG_DEBUG(AudioSource_i, "End of stream");
+               loop();
+               break;
+
+           default:
+            LOG_INFO(AudioSource_i, "Received gstreamer message: " <<gst_message_type_get_name (GST_MESSAGE_TYPE (message)));
+               break;
+           }
     }
 
-    switch(GST_MESSAGE_TYPE(message)){
-
-       case GST_MESSAGE_ERROR:{
-           gchar *debug;
-           GError *err;
-
-           gst_message_parse_error(message, &err, &debug);
-           LOG_ERROR(AudioSource_i, "Gstreamer Error: " << err->message);
-           g_error_free(err);
-           g_free(debug);
-       }
-       break;
-
-       case GST_MESSAGE_EOS:
-       	   LOG_DEBUG(AudioSource_i, "End of stream");
-       	   loop();
-           break;
-
-       default:
-       	LOG_INFO(AudioSource_i, "Received gstreamer message: " <<gst_message_type_get_name (GST_MESSAGE_TYPE (message)));
-           break;
-       }
-
-    return NORMAL;
+    return NOOP;
 }
 
 void AudioSource_i::_set_gst_vol_param(const std::string& propid) {

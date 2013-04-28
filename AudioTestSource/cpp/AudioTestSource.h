@@ -47,6 +47,7 @@ class AudioTestSource_i : public AudioTestSource_base
 	    bool sri_changed;
 
 		GstElement *pipeline;
+		GstBus* bus;
 
 		GstElement *src;
 		GstElement *conv;
