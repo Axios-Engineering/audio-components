@@ -22,7 +22,17 @@
 PREPARE_LOGGING(AudioSink_i)
 
 AudioSink_i::AudioSink_i(const char *uuid, const char *label) : 
-    AudioSink_base(uuid, label)
+    AudioSink_base(uuid, label),
+    pipeline(0),
+    bus(0),
+    src(0),
+    rate(0),
+    conv(0),
+    eqlzr(0),
+    vol(0),
+    resamp(0),
+    queue(0),
+    sink(0)
 {
 	const gchar *nano_str;
 	guint major, minor, micro, nano;

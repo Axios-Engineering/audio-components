@@ -20,7 +20,11 @@
 PREPARE_LOGGING(AudioSource_i)
 
 AudioSource_i::AudioSource_i(const char *uuid, const char *label) : 
-    AudioSource_base(uuid, label)
+    AudioSource_base(uuid, label),
+    bus(0),
+    pipeline(0),
+    sink(0),
+    vsink(0)
 {
 	// Initialize and determine which version of GStreamer is being used.
 	const gchar *nano_str;
